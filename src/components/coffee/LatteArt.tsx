@@ -7,6 +7,8 @@ import * as THREE from 'three';
 const LatteSurface = () => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const rippleRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const clockRef = useRef<THREE.Clock | null>(null);
 
   // Create a procedural texture for latte art
   const texture = useMemo(() => {
@@ -64,6 +66,8 @@ const LatteSurface = () => {
   }, []);
 
   useFrame((state, delta) => {
+    clockRef.current = state.clock;
+    
     if (meshRef.current && materialRef.current) {
       // Gentle rotation of the texture to simulate liquid movement
       texture.rotation += delta * 0.05;
@@ -72,36 +76,83 @@ const LatteSurface = () => {
       // Subtle scale pulsing
       const scale = 1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.02;
       texture.repeat.set(scale, scale);
+      
+      // Animate ripples
+      if (rippleRef.current && meshRef.current) {
+        const geometry = meshRef.current.geometry as THREE.PlaneGeometry;
+        const positions = geometry.attributes.position;
+        const originalPositions = (geometry as any).originalPositions || 
+          new Float32Array(positions.array);
+        
+        // Store original positions if not already stored
+        if (!(geometry as any).originalPositions) {
+          (geometry as any).originalPositions = new Float32Array(positions.array);
+        }
+        
+        const elapsed = state.clock.elapsedTime - rippleRef.current.time;
+        const rippleStrength = Math.max(0, 1 - elapsed * 2); // Fade out over 0.5 seconds
+        
+        for (let i = 0; i < positions.count; i++) {
+          const x = originalPositions[i * 3];
+          const y = originalPositions[i * 3 + 1];
+          const z = originalPositions[i * 3 + 2];
+          
+          // Convert to UV space (normalized -1 to 1)
+          const u = (x + 1.4) / 2.8;
+          const v = (y + 1.4) / 2.8;
+          
+          const dx = u - rippleRef.current.x;
+          const dy = v - rippleRef.current.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < 0.3 && rippleStrength > 0) {
+            const wave = Math.sin(elapsed * 15 - dist * 20) * 0.15 * rippleStrength;
+            const falloff = 1 - (dist / 0.3);
+            positions.setZ(i, z + wave * falloff);
+          } else {
+            // Smoothly return to original position
+            const currentZ = positions.getZ(i);
+            positions.setZ(i, currentZ * 0.9 + z * 0.1);
+          }
+        }
+        positions.needsUpdate = true;
+        
+        // Remove ripple when it fades out
+        if (rippleStrength <= 0) {
+          rippleRef.current = null;
+        }
+      } else if (meshRef.current) {
+        // Reset positions when no ripple
+        const geometry = meshRef.current.geometry as THREE.PlaneGeometry;
+        const positions = geometry.attributes.position;
+        if ((geometry as any).originalPositions) {
+          for (let i = 0; i < positions.count; i++) {
+            const z = (geometry as any).originalPositions[i * 3 + 2];
+            const currentZ = positions.getZ(i);
+            if (Math.abs(currentZ - z) > 0.001) {
+              positions.setZ(i, currentZ * 0.95 + z * 0.05);
+            } else {
+              positions.setZ(i, z);
+            }
+          }
+          positions.needsUpdate = true;
+        }
+      }
     }
   });
 
   const handlePointerMove = (e: any) => {
-    if (meshRef.current && e.uv) {
-      // Create ripple effect by displacing geometry
-      const geometry = meshRef.current.geometry as THREE.PlaneGeometry;
-      const positions = geometry.attributes.position;
-      
-      for (let i = 0; i < positions.count; i++) {
-        const x = positions.getX(i);
-        const y = positions.getY(i);
-        
-        // Convert to UV space
-        const u = (x + 1.4) / 2.8;
-        const v = (y + 1.4) / 2.8;
-        
-        const dx = u - e.uv.x;
-        const dy = v - e.uv.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        if (dist < 0.2) {
-          const wave = Math.sin(Date.now() * 0.01 + dist * 20) * 0.1;
-          positions.setZ(i, wave * (0.2 - dist));
-        } else {
-          positions.setZ(i, positions.getZ(i) * 0.95); // Decay
-        }
-      }
-      positions.needsUpdate = true;
+    if (e.uv && clockRef.current) {
+      rippleRef.current = {
+        x: e.uv.x,
+        y: e.uv.y,
+        time: clockRef.current.elapsedTime
+      };
     }
+  };
+
+  const handlePointerLeave = () => {
+    rippleRef.current = null;
   };
 
   return (
@@ -110,8 +161,10 @@ const LatteSurface = () => {
       rotation={[-Math.PI / 2, 0, 0]}
       position={[0, 0.01, 0]}
       onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      onPointerEnter={handlePointerMove}
     >
-      <planeGeometry args={[2.8, 2.8, 32, 32]} />
+      <planeGeometry args={[2.8, 2.8, 64, 64]} />
       <meshStandardMaterial
         ref={materialRef}
         map={texture}
@@ -227,6 +280,8 @@ export default function LatteArt({ className = '' }: LatteArtProps) {
         camera={{ position: [0, 4, 0.5], fov: 40 }} 
         dpr={[1, 2]}
         shadows
+        gl={{ antialias: true }}
+        style={{ touchAction: 'none' }}
       >
         <color attach="background" args={['#F5F1EB']} />
         

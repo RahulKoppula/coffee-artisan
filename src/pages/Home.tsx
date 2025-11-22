@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import LatteArt from '../components/coffee/LatteArt';
+import CoffeeCupTopDownArt from '../components/coffee/CoffeeCupTopDownArt';
 
 export default function Home() {
   return (
@@ -27,7 +27,7 @@ export default function Home() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="mb-8 sm:mb-12 h-64 sm:h-80 md:h-96 relative"
           >
-            <LatteArt className="w-full h-full" />
+            <CoffeeCupTopDownArt className="w-full h-full" />
           </motion.div>
 
           <motion.div

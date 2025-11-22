@@ -9,6 +9,7 @@ A beautiful, minimal pastel-themed web application for exploring coffee recipes,
 - 🔍 **Recipe Generator** - Select ingredients and discover what coffee recipes you can make
 - 📚 **Learn Section** - Expand your coffee knowledge with educational content
 - 🎭 **3D Coffee Renderings** - Interactive 3D coffee cup visualizations using Three.js
+- ⚡ **Optimized Performance** - Code splitting, lazy loading, and production-ready build
 
 ## Tech Stack
 

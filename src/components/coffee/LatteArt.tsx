@@ -197,7 +197,7 @@ const SteamParticles = () => {
     return geometry;
   }, []);
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (particlesRef.current) {
       const positions = particles.attributes.position;
       
